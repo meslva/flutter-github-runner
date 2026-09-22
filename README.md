@@ -119,32 +119,37 @@ uname -m
 
 ## 3. 설치
 
-### 3-1. 등록 토큰 발급
+### 한눈에 보는 설치 순서
 
-둘 중 편한 방법을 쓰세요.
+위에서부터 차례로 따라 하면 됩니다. 명령어의 `OWNER/REPO`, `REPO`는 내 저장소 이름으로 바꾸세요.
 
-**방법 A. 웹에서 발급**
+| 단계 | 하는 일 | 어디서 |
+|---|---|---|
+| [3-1](#3-1-공개-저장소라면-보안-설정-먼저) | 공개 저장소라면 보안 설정 | 웹 |
+| [3-2](#3-2-러너-폴더-만들기) | 러너 폴더 만들기 | 터미널 |
+| [3-3](#3-3-러너-다운로드) | 러너 다운로드 | 터미널 |
+| [3-4](#3-4-등록-토큰-발급) | 등록 토큰 발급 (1시간 유효) | 터미널 또는 웹 |
+| [3-5](#3-5-러너-등록-configsh) | 러너 등록 | 터미널 |
+| [4-1](#4-1-테스트-실행-runsh) | 테스트 실행, Idle 확인 | 터미널 + 웹 |
+| [4-2](#4-2-상시-실행용-서비스로-등록) | 서비스로 등록 | 터미널 |
+| [4-3](#4-3-빌드-도구-경로-설정) | 빌드 도구 경로 설정 | 터미널 |
 
-1. 저장소 페이지 → **Settings** → **Actions** → **Runners**로 이동합니다.
-2. **New self-hosted runner**를 누릅니다.
-3. **macOS**와 CPU에 맞는 아키텍처(**ARM64** 또는 **x64**)를 선택합니다.
-4. 화면의 `Configure` 부분에 있는 `--token` 값이 등록 토큰입니다. 이 화면에는 다운로드와 설정 명령어도 함께 나오므로 그대로 따라 해도 됩니다.
+### 3-1. 공개 저장소라면 보안 설정 먼저
 
-**방법 B. `gh` CLI로 발급**
+비공개 저장소라면 건너뛰어도 됩니다. 공개 저장소라면 **러너를 붙이기 전에** 해 두세요.
+
+1. 저장소 → **Settings** → **Actions** → **General**로 이동합니다.
+2. **Approval for running fork pull request workflows from contributors**에서 **Require approval for all external contributors**를 고르고 **Save**를 누릅니다.
+
+기본 설정은 "처음 기여하는 사람만 승인"이라서, 한 번이라도 기여한 사람의 PR은 승인 없이 내 Mac에서 실행됩니다. 자세한 이유는 [7. 보안 주의사항](#7-보안-주의사항)을 참고하세요.
+
+### 3-2. 러너 폴더 만들기
+
+러너 폴더는 **프로젝트(저장소) 폴더 밖에 따로** 만듭니다. 이 문서에서는 `~/actions-runners/` 아래에 **저장소 이름으로** 폴더를 만듭니다.
 
 ```bash
-gh auth login
+mkdir -p ~/actions-runners/REPO && cd ~/actions-runners/REPO
 ```
-
-```bash
-gh api -X POST repos/OWNER/REPO/actions/runners/registration-token --jq .token
-```
-
-출력된 문자열이 등록 토큰입니다. 1시간 안에 사용하세요.
-
-### 3-2. 러너 폴더 위치 정하기
-
-러너를 설치할 폴더는 **프로젝트(저장소) 폴더 밖에 따로** 만듭니다. 이 문서에서는 홈 폴더 아래에 `~/actions-runners/`를 만들고, 그 안에 **저장소 이름으로 하위 폴더**를 만듭니다.
 
 ```
 ~/actions-runners/            ← 정리용 상위 폴더 (러너 아님)
@@ -152,7 +157,6 @@ gh api -X POST repos/OWNER/REPO/actions/runners/registration-token --jq .token
 └─ app2/                      ← 러너 2: 나중에 다른 저장소를 추가할 때
 ```
 
-- `actions-runners`는 러너들을 모아 두는 폴더일 뿐이고, 안에 공용 프로그램이나 설정은 없습니다.
 - **하위 폴더 하나가 러너 하나**이고, 러너 하나는 **저장소 하나**에 등록됩니다. 다른 저장소에서도 쓰려면 [10. 여러 저장소에서 쓰기](#10-여러-저장소에서-쓰기)를 참고하세요.
 - 러너는 폴더 위치가 아니라 `config.sh`에 적은 **저장소 주소**로 연결됩니다. 빌드할 코드는 GitHub에서 새로 받아오므로, 내가 코드를 편집하는 프로젝트 폴더와는 관계가 없습니다.
 
@@ -166,44 +170,9 @@ gh api -X POST repos/OWNER/REPO/actions/runners/registration-token --jq .token
 
 > **설치한 뒤에는 폴더를 옮기지 마세요.** 서비스 설정에 경로가 저장되어 있어서, 옮기려면 `./svc.sh uninstall` → 이동 → `./svc.sh install`을 다시 해야 합니다.
 
-**러너 폴더 안에는 무엇이 있나요?**
-
-설치와 등록을 마치면 폴더 안이 이렇게 채워집니다.
-
-```
-~/actions-runners/REPO/
-├─ config.sh          러너 등록 / 등록 해제
-├─ run.sh             러너를 직접 실행 (테스트용)
-├─ svc.sh             서비스 등록·시작·중지 (상시 실행용)
-├─ bin/, externals/   러너 프로그램 본체 (자동 업데이트 시 바뀜)
-├─ .runner            등록 정보 (저장소 주소, 러너 이름 등)
-├─ .credentials       GitHub 인증 정보 ← 절대 공유·커밋 금지
-├─ .credentials_rsaparams
-├─ .env               러너가 쓰는 환경 변수 (JAVA_HOME 등, 직접 추가)
-├─ .path              러너가 쓰는 PATH (등록할 때의 PATH가 저장됨)
-├─ _diag/             러너 동작 로그
-└─ _work/             빌드 작업 공간
-    ├─ REPO/REPO/     checkout된 소스 코드 (작업 사이에 지워지지 않음)
-    └─ _temp/         작업 중 임시 파일 (RUNNER_TEMP)
-```
-
-| 파일·폴더 | 언제 손대나요 |
-|---|---|
-| `.env` | 러너가 도구를 못 찾을 때 `JAVA_HOME`, `ANDROID_HOME` 같은 값을 적습니다. 적은 뒤 러너를 다시 시작합니다 |
-| `.path` | `flutter`, `pod` 같은 명령어를 못 찾을 때 PATH를 고칩니다. 고친 뒤 러너를 다시 시작합니다 |
-| `_diag/` | 러너가 이상할 때 로그를 확인합니다 |
-| `_work/` | 디스크가 부족하거나 빌드가 꼬였을 때, 러너를 멈추고 지워도 됩니다. 다음 작업 때 다시 만들어집니다 |
-| `.runner`, `.credentials*` | 직접 수정하지 않습니다. 다시 등록하려면 `config.sh remove` 후 새로 등록합니다 |
-
 ### 3-3. 러너 다운로드
 
-러너를 설치할 폴더를 만들고 이동합니다. `REPO`는 등록할 저장소 이름으로 바꾸세요.
-
-```bash
-mkdir -p ~/actions-runners/REPO && cd ~/actions-runners/REPO
-```
-
-최신 버전은 [actions/runner Releases](https://github.com/actions/runner/releases/latest)에서 확인할 수 있습니다. 아래 명령어는 최신 버전을 자동으로 찾아서 CPU에 맞는 패키지를 받습니다.
+3-2에서 만든 폴더 안에서 실행합니다. 최신 버전을 자동으로 찾아서 CPU에 맞는 패키지를 받습니다.
 
 ```bash
 VERSION=$(curl -fsSL https://api.github.com/repos/actions/runner/releases/latest | grep '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/')
@@ -212,10 +181,31 @@ curl -fL -o actions-runner.tar.gz "https://github.com/actions/runner/releases/do
 tar xzf actions-runner.tar.gz
 ```
 
-> 방법 A의 Runners 페이지에 나오는 `curl` / `tar` 명령어를 그대로 써도 결과는 같습니다.
-> 그 페이지에는 파일 해시(SHA-256) 확인 명령어도 있으니 함께 실행하면 더 안전합니다.
+`ls`를 실행했을 때 `config.sh`, `run.sh`, `svc.sh`가 보이면 된 것입니다.
 
-### 3-4. 러너 등록 (config.sh)
+> 저장소의 **Settings → Actions → Runners → New self-hosted runner** 화면에 나오는 `curl` / `tar` 명령어를 그대로 써도 결과는 같습니다. 그 화면에는 파일 해시(SHA-256) 확인 명령어도 있으니 함께 실행하면 더 안전합니다.
+
+### 3-4. 등록 토큰 발급
+
+등록 토큰은 **1시간 뒤 만료**됩니다. 그래서 다운로드를 마친 뒤, 등록하기 **바로 직전에** 발급받는 것이 좋습니다.
+
+**방법 A. `gh` CLI로 발급 (추천)**
+
+```bash
+gh api -X POST repos/OWNER/REPO/actions/runners/registration-token --jq .token
+```
+
+출력된 문자열이 등록 토큰입니다. `gh`에 로그인되어 있지 않다면 먼저 `gh auth login`을 실행하세요.
+
+**방법 B. 웹에서 발급**
+
+1. 저장소 → **Settings** → **Actions** → **Runners** → **New self-hosted runner**를 누릅니다.
+2. **macOS**와 CPU에 맞는 아키텍처(**ARM64** 또는 **x64**)를 선택합니다.
+3. 화면의 `Configure` 부분에 있는 `--token` 값이 등록 토큰입니다.
+
+### 3-5. 러너 등록 (config.sh)
+
+`등록토큰`에 3-4에서 받은 값을 넣어 실행합니다.
 
 ```bash
 ./config.sh --url https://github.com/OWNER/REPO --token 등록토큰
@@ -230,10 +220,10 @@ tar xzf actions-runner.tar.gz
 | additional labels | 없음 | 워크플로에서 이 러너를 고를 때 쓸 라벨입니다. 기본으로 `self-hosted`, `macOS`, `ARM64`(또는 `X64`)가 붙습니다 |
 | work folder | `_work` | 작업이 실행되는 폴더입니다 |
 
-질문 없이 한 번에 등록하려면 옵션을 함께 넘깁니다.
+질문 없이 한 번에 등록하려면 옵션을 함께 넘깁니다. 예를 들어 Flutter 빌드용 러너라면 `flutter` 라벨을 붙여 둘 수 있습니다.
 
 ```bash
-./config.sh --url https://github.com/OWNER/REPO --token 등록토큰 --name my-mac --labels mac-builder --work _work --unattended
+./config.sh --url https://github.com/OWNER/REPO --token 등록토큰 --name my-mac --labels flutter --work _work --unattended
 ```
 
 `√ Settings Saved.`가 나오면 등록이 끝난 것입니다.
@@ -242,24 +232,26 @@ tar xzf actions-runner.tar.gz
 
 ## 4. 실행
 
-### 4-1. 테스트용: 직접 실행
+### 4-1. 테스트 실행 (run.sh)
 
 ```bash
 ./run.sh
 ```
 
-`Listening for Jobs`가 나오면 작업을 기다리는 상태입니다. 터미널을 닫거나 `Ctrl+C`를 누르면 러너도 멈춥니다. 처음 설치했을 때 잘 되는지 확인하는 용도로 쓰세요.
+1. `Listening for Jobs`가 나오면 작업을 기다리는 상태입니다.
+2. 저장소 → **Settings** → **Actions** → **Runners**에서 러너가 **Idle**(초록색)로 보이는지 확인합니다.
+3. 확인했으면 `Ctrl+C`로 멈춥니다. `run.sh`는 터미널을 닫으면 같이 멈추므로 테스트 용도로만 씁니다.
 
 ### 4-2. 상시 실행용: 서비스로 등록
 
 로그인할 때 자동으로 시작되고, 터미널을 닫아도 계속 실행되게 하려면 서비스로 등록합니다. `run.sh`가 실행 중이라면 먼저 `Ctrl+C`로 멈추세요.
 
 ```bash
-./svc.sh install
+./svc.sh install && ./svc.sh start
 ```
 
 ```bash
-./svc.sh start
+./svc.sh status
 ```
 
 | 명령어 | 설명 |
@@ -272,7 +264,31 @@ tar xzf actions-runner.tar.gz
 
 서비스 설정 파일은 `~/Library/LaunchAgents/` 안에 `actions.runner.`로 시작하는 이름으로 만들어집니다.
 
-### 4-3. 잠자기 방지 (선택)
+### 4-3. 빌드 도구 경로 설정
+
+러너는 내 터미널 설정(`~/.zshrc`)을 읽지 않습니다. 그래서 터미널에서는 되는 `flutter`, `pod`, `java`를 러너에서는 못 찾는 경우가 많습니다. 앱을 빌드할 계획이라면 설치 직후에 한 번 해 두세요.
+
+**PATH 저장하기**: 필요한 명령어가 모두 잘 되는 터미널에서 실행합니다.
+
+```bash
+cd ~/actions-runners/REPO && echo "$PATH" > .path
+```
+
+**환경 변수 적기**: Android 빌드를 한다면 `JAVA_HOME`, `ANDROID_HOME`을 적습니다. 경로는 내 설치 위치에 맞게 바꾸세요.
+
+```bash
+echo 'JAVA_HOME=/Applications/Android Studio.app/Contents/jbr/Contents/Home' >> .env && echo "ANDROID_HOME=$HOME/Library/Android/sdk" >> .env
+```
+
+**러너 다시 시작하기**: `.path`, `.env`는 러너가 시작할 때 읽으므로 바꾼 뒤에는 꼭 다시 시작합니다.
+
+```bash
+./svc.sh stop && ./svc.sh start
+```
+
+플랫폼별로 필요한 도구는 [Android](docs/android.md#2-러너-mac-준비하기), [Flutter](docs/flutter.md#1-러너-mac-준비하기) 문서를 참고하세요.
+
+### 4-4. 잠자기 방지 (선택)
 
 컴퓨터가 잠자기에 들어가면 작업을 받지 못합니다. 계속 작업을 받아야 한다면 아래 중 하나를 쓰세요.
 
@@ -282,6 +298,35 @@ tar xzf actions-runner.tar.gz
 ```bash
 caffeinate -i
 ```
+
+### 4-5. 러너 폴더 살펴보기
+
+설치와 등록을 마치면 러너 폴더 안이 이렇게 채워집니다.
+
+```
+~/actions-runners/REPO/
+├─ config.sh          러너 등록 / 등록 해제
+├─ run.sh             러너를 직접 실행 (테스트용)
+├─ svc.sh             서비스 등록·시작·중지 (상시 실행용)
+├─ bin/, externals/   러너 프로그램 본체 (자동 업데이트 시 바뀜)
+├─ .runner            등록 정보 (저장소 주소, 러너 이름 등)
+├─ .credentials       GitHub 인증 정보 ← 절대 공유·커밋 금지
+├─ .credentials_rsaparams
+├─ .env               러너가 쓰는 환경 변수 (4-3에서 추가)
+├─ .path              러너가 쓰는 PATH (4-3에서 저장)
+├─ _diag/             러너 동작 로그
+└─ _work/             빌드 작업 공간
+    ├─ REPO/REPO/     checkout된 소스 코드 (작업 사이에 지워지지 않음)
+    └─ _temp/         작업 중 임시 파일 (RUNNER_TEMP)
+```
+
+| 파일·폴더 | 언제 손대나요 |
+|---|---|
+| `.env` | 러너가 도구를 못 찾을 때 `JAVA_HOME`, `ANDROID_HOME` 같은 값을 적습니다. 적은 뒤 러너를 다시 시작합니다 |
+| `.path` | `flutter`, `pod` 같은 명령어를 못 찾을 때 PATH를 고칩니다. 고친 뒤 러너를 다시 시작합니다 |
+| `_diag/` | 러너가 이상할 때 로그를 확인합니다 |
+| `_work/` | 디스크가 부족하거나 빌드가 꼬였을 때, 러너를 멈추고 지워도 됩니다. 다음 작업 때 다시 만들어집니다 |
+| `.runner`, `.credentials*` | 직접 수정하지 않습니다. 다시 등록하려면 `config.sh remove` 후 새로 등록합니다 |
 
 ---
 
@@ -310,7 +355,7 @@ jobs:
 
 - `runs-on`에 적은 라벨을 **모두 가진 러너**에서 작업이 실행됩니다.
 - 러너가 하나뿐이라면 `runs-on: self-hosted`만 써도 됩니다.
-- 등록할 때 직접 붙인 라벨(예: `mac-builder`)로도 고를 수 있습니다.
+- 등록할 때 직접 붙인 라벨(예: `flutter`)로도 고를 수 있습니다.
 
 ---
 
@@ -390,7 +435,7 @@ self-hosted runner는 워크플로에 적힌 코드를 **내 컴퓨터에서, �
 
 **방법 1. 저장소마다 러너 폴더를 하나씩 추가하기**
 
-`~/actions-runners/` 아래에 저장소 이름으로 폴더를 하나 더 만들고, [3-3](#3-3-러너-다운로드)부터 [4-2](#4-2-상시-실행용-서비스로-등록)까지를 그 폴더에서 반복합니다.
+`~/actions-runners/` 아래에 저장소 이름으로 폴더를 하나 더 만들고, [3-3](#3-3-러너-다운로드)부터 [4-3](#4-3-빌드-도구-경로-설정)까지를 그 폴더에서 반복합니다.
 
 ```bash
 mkdir -p ~/actions-runners/app2 && cd ~/actions-runners/app2
