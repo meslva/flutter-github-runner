@@ -1,0 +1,17 @@
+name: self-hosted test
+
+on:
+  workflow_dispatch:   # Actions 탭에서 직접 실행
+  push:
+
+jobs:
+  hello:
+    runs-on: [self-hosted, macOS, ARM64]   # Intel Mac이면 X64
+    steps:
+      - uses: actions/checkout@v7
+      - name: Runner info
+        run: |
+          echo "Hello from self-hosted runner"
+          uname -a
+          sw_vers
+
