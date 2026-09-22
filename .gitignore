@@ -1,0 +1,6 @@
+# macOS
+.DS_Store
+
+# Local tool state
+.bkit/
+.claude/
